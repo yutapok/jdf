@@ -94,35 +94,35 @@ impl QueryInner {
     }
 
     fn when(&self, stmt: &Statement) -> Value {
-        //TODO: refactor
-         let select = self.extract_as_str(&stmt.select.as_str());
-         match &stmt.select {
-             Expression::AsteriskInArray(_) => {
-                 (0..self.jdf_mp.iter().len())
-                 .map(|ix| {
-                   let select = stmt.select.as_str().replace("*", &ix.to_string());
-                   let left_s = stmt.left.as_ref().unwrap().as_str().replace("*", &ix.to_string());
-                   let left = self.jdf_mp.get(&left_s).unwrap_or(&Value::Null);
-                   (select, left)
-                 })
-                 .filter(|(select, left)| self.when_case(left, &stmt.operator.as_ref().unwrap(), &stmt.right.as_ref().unwrap()))
-                 .find_map(|(select, left)| self.jdf_mp.get(&select))
-                 .unwrap_or(&Value::Null)
-                 .clone()
-             },
-             Expression::Nomal(s) => {
-                 if self.when_case(
-                     self.jdf_mp.get(&stmt.left.as_ref().unwrap().as_str()).unwrap_or(&Value::Null),
-                     stmt.operator.as_ref().unwrap(),
-                     stmt.right.as_ref().unwrap()
-                 ) {
-                     self.jdf_mp.get(&stmt.select.as_str()).unwrap_or(&Value::Null).clone()
-                 } else {
-                     Value::Null
-                 }
-             }
-         }
+        let length: usize = self.jdf_mp.iter().len();
+
+        if stmt.is_ast_exp() {
+            let select_v = stmt.select.as_ast().unwrap().parse_as_vec(length);
+            let left_v = stmt.left.as_ref().unwrap().as_ast().unwrap().parse_as_vec(length);
+
+            select_v.iter().zip(left_v.iter()).map(|(select_s, left_s)| {
+                (
+                  select_s,
+                  self.jdf_mp.get(left_s).unwrap_or(&Value::Null)
+                )
+            })
+            .filter(|(select, left)| self.when_case(left, &stmt.operator.as_ref().unwrap(), &stmt.right.as_ref().unwrap()))
+            .find_map(|(select, left)| self.jdf_mp.get(select))
+            .unwrap_or(&Value::Null)
+            .clone()
+        } else {
+            if self.when_case(
+                self.jdf_mp.get(&stmt.left.as_ref().unwrap().as_str()).unwrap_or(&Value::Null),
+                stmt.operator.as_ref().unwrap(),
+                stmt.right.as_ref().unwrap()
+            ) {
+                self.jdf_mp.get(&stmt.select.as_str()).unwrap_or(&Value::Null).clone()
+            } else {
+                Value::Null
+            }
+        }
     }
+
 
     fn when_case(&self, left: &Value, operator: &Operator, right: &Value) -> bool {
         match (operator, left, right) {

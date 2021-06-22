@@ -41,16 +41,29 @@ impl Condition {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct Asterisk {
+    pub inner_str: String
+}
+
+impl Asterisk {
+    pub fn parse_as_vec(&self, length: usize) -> Vec<String> {
+        (0..length).map(|ix| {
+            self.inner_str.replace("*", &ix.to_string())
+        }).collect::<Vec<String>>()
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Expression {
-    AsteriskInArray(String),
+    AsteriskInArray(Asterisk),
     Nomal(String)
 }
 
 impl Expression {
     pub fn from(s: &str) -> Self {
         if s.contains("[*]") {
-            Expression::AsteriskInArray(s.to_string())
+            Expression::AsteriskInArray(Asterisk { inner_str: s.to_string() })
         } else {
             Expression::Nomal(s.to_string())
         }
@@ -58,7 +71,7 @@ impl Expression {
 
     pub fn as_str(&self) -> String {
         match &*self {
-            Expression::AsteriskInArray(s) => s.to_string(),
+            Expression::AsteriskInArray(st) => st.inner_str.clone(),
             Expression::Nomal(s) => s.to_string()
         }
     }
@@ -69,6 +82,14 @@ impl Expression {
           _ => false
         }
     }
+
+    pub fn as_ast(&self) -> Option<Asterisk> {
+        match &*self {
+            Expression::AsteriskInArray(st) => Some(st.clone()),
+            _ => None
+        }
+    }
+
 }
 
 #[derive(Debug)]
@@ -116,6 +137,10 @@ impl Statement {
             },
             Condition::Unknown => Err(QueryError {})
         }
+    }
+
+    pub fn is_ast_exp(&self) -> bool {
+        self.select.is_ast() && self.left.as_ref().map(|e| e.is_ast()).unwrap_or(false)
     }
 }
 
