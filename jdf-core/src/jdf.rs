@@ -1,4 +1,4 @@
-use serde_json::{Result, Value, Map};
+use serde_json::{Value, Map};
 
 pub struct Jdf {
     pub value: Value
@@ -23,10 +23,6 @@ impl Jdf {
             let mp: Map<String, Value> = Map::new();
             mp
         }
-    }
-
-    pub fn dumps(&mut self) -> Result<String> {
-        serde_json::to_string(&self.convert())
     }
 }
 

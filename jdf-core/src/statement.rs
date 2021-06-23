@@ -1,7 +1,8 @@
 use serde_json::json;
 use serde_json::Value;
 
-use crate::error::QueryError;
+use crate::error;
+use crate::error::JdfError;
 
 
 #[derive(Clone, Debug, PartialEq)]
@@ -35,8 +36,8 @@ impl Condition {
         match s {
           Some("WHEN") => Condition::When,
           Some("APPEND") => Condition::Append,
-          None => Condition::NoCondition,
-          _ => Condition::Unknown
+          Some(_) => Condition::Unknown,
+          None => Condition::NoCondition
         }
     }
 }
@@ -61,11 +62,11 @@ pub enum Expression {
 }
 
 impl Expression {
-    pub fn from(s: &str) -> Result<Self, QueryError> {
+    pub fn from(s: &str) -> Self {
         if s.contains("[*]") {
-            Ok(Expression::AsteriskInArray(Asterisk { inner_str: s.to_string() }))
+            Expression::AsteriskInArray(Asterisk { inner_str: s.to_string() })
         } else {
-            Ok(Expression::Nomal(s.to_string()))
+            Expression::Nomal(s.to_string())
         }
     }
 
@@ -103,16 +104,13 @@ pub struct Statement {
 }
 
 impl Statement {
-    pub fn new(s: &str) -> Result<Self, QueryError> {
+    pub fn new(s: &str) -> Result<Self, JdfError> {
         let mut iter = s.split_whitespace();
         let select_s = iter.next().unwrap_or("-");
         let _as = iter.next();
         let alias = iter.next().unwrap_or(".");
         let condition = iter.next();
-        let select = match Expression::from(select_s) {
-          Ok(e) => e,
-          Err(err) => return Err(err)
-        };
+        let select = Expression::from(select_s);
 
         let cond = Condition::from(condition);
         match cond {
@@ -120,10 +118,7 @@ impl Statement {
                 let left = iter.next().unwrap_or("- ");
                 let operator = iter.next().unwrap_or("-");
                 let right = iter.next().unwrap_or(" -");
-                let left_e = match Expression::from(left) {
-                  Ok(e) => e,
-                  Err(err) => return Err(err)
-                };
+                let left_e = Expression::from(left);
 
                 Ok(Statement {
                     select: select,
@@ -144,7 +139,7 @@ impl Statement {
                   right: None
               })
             },
-            Condition::Unknown => Err(QueryError {})
+            Condition::Unknown => Err(error!("Unexpected condition was found"))
         }
     }
 
