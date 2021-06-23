@@ -1,4 +1,4 @@
-use crate::statement::{Condition, Operator, Statement};
+use crate::statement::{Condition, Operator, Expression, Statement};
 use crate::jdf::Jdf;
 
 use serde_json::{Value, Map};
@@ -74,11 +74,51 @@ impl QueryInner {
         }
     }
 
+    fn keys_with_ast(&self, stmt_exp: Expression) -> Vec<String> {
+        let src = stmt_exp.as_str();
+        let dst_v = self.jdf_mp.keys();
+        dst_v
+          .filter(|dst| self.partial_match(&src, &dst))
+          .map(|dst| dst.clone())
+          .collect::<Vec<String>>()
+    }
+
+    fn partial_match(&self, src: &str, dst: &str) -> bool {
+        let mut flag: u8 = 0;
+        let src_s = src
+          .chars()
+          .filter(|c| self.encount(*c, &mut flag))
+          .collect::<String>();
+
+        let mut flag: u8 = 0;
+        let dst_s = dst
+          .chars()
+          .filter(|c| self.encount(*c, &mut flag))
+          .collect::<String>();
+
+        src_s.eq(&dst_s)
+    }
+
+    fn encount(&self, c: char, flag: &mut u8) -> bool {
+        if c == "[".chars().next().unwrap() {
+            *flag = 1;
+        }
+
+        if c == "]".chars().next().unwrap() {
+            *flag = 0;
+        }
+
+        *flag == 0 as u8
+    }
+
     fn when(&self, stmt: &Statement) -> Value {
-        let length: usize = self.jdf_mp.iter().len();
         if stmt.is_ast_exp() {
-            let select_v = stmt.select.as_ast().unwrap().parse_as_vec(length);
-            let left_v = stmt.left.as_ref().unwrap().as_ast().unwrap().parse_as_vec(length);
+            let mut select_v = self.keys_with_ast(stmt.select.clone());
+            let mut left_v = self.keys_with_ast(stmt.left.as_ref().unwrap().clone());
+
+            select_v.sort();
+            left_v.sort();
+
 
             select_v.iter().zip(left_v.iter()).map(|(select_s, left_s)| {
                 (
@@ -118,13 +158,12 @@ impl QueryInner {
         if !stmt.select.is_ast() {
             Value::Array(Vec::with_capacity(1))
         } else {
-            let select_v = stmt.select.as_ast().unwrap().parse_as_vec(self.jdf_mp.iter().len());
+            let select_v = self.keys_with_ast(stmt.select.clone());
             let v_v = select_v
               .iter()
               .filter_map(|select_s| self.jdf_mp.get(select_s))
               .filter(|v| !v.is_null())
               .map(|v| v.clone())
-              .inspect(|v| println!("{}", v))
               .collect::<Vec<Value>>();
 
             Value::Array(v_v)

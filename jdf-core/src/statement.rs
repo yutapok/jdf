@@ -62,10 +62,6 @@ pub enum Expression {
 
 impl Expression {
     pub fn from(s: &str) -> Result<Self, QueryError> {
-        if s.chars().filter(|c| *c == '*').collect::<Vec<char>>().len() > 1 {
-            return Err(QueryError{})
-        }
-
         if s.contains("[*]") {
             Ok(Expression::AsteriskInArray(Asterisk { inner_str: s.to_string() }))
         } else {

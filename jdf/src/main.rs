@@ -17,17 +17,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out = stdout();
     let mut out = BufWriter::new(out.lock());
 
-
     let stmts = BufReader::new(File::open(&args[1])?)
       .lines()
       .filter_map(|l| l.ok())
       .filter_map(|l| Statement::new(&l).ok())
       .collect::<Vec<Statement>>();
 
-
     while reader.read_line(&mut buf)? > 0 {
-        let jdf = Jdf::new(buf.to_string());
-
+        let mut jdf = Jdf::new(buf.to_string());
         let mut q = Query::new(jdf, stmts.clone());
         let new_mp = q.execute();
 
