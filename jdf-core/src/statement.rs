@@ -1,11 +1,10 @@
-use std::sync::Arc;
 use serde_json::json;
-use serde_json::{Value, Map};
+use serde_json::Value;
 
 use crate::error::QueryError;
 
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Operator {
   EQ,
   NEQ,
@@ -22,7 +21,7 @@ impl Operator {
   }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Condition {
   When,
   Append,
@@ -32,10 +31,11 @@ pub enum Condition {
 
 
 impl Condition {
-    pub fn from(s: &str) -> Self {
+    pub fn from(s: Option<&str>) -> Self {
         match s {
-          "WHEN" => Condition::When,
-          "APPEND" => Condition::Append,
+          Some("WHEN") => Condition::When,
+          Some("APPEND") => Condition::Append,
+          None => Condition::NoCondition,
           _ => Condition::Unknown
         }
     }
@@ -54,18 +54,22 @@ impl Asterisk {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
     AsteriskInArray(Asterisk),
     Nomal(String)
 }
 
 impl Expression {
-    pub fn from(s: &str) -> Self {
+    pub fn from(s: &str) -> Result<Self, QueryError> {
+        if s.chars().filter(|c| *c == '*').collect::<Vec<char>>().len() > 1 {
+            return Err(QueryError{})
+        }
+
         if s.contains("[*]") {
-            Expression::AsteriskInArray(Asterisk { inner_str: s.to_string() })
+            Ok(Expression::AsteriskInArray(Asterisk { inner_str: s.to_string() }))
         } else {
-            Expression::Nomal(s.to_string())
+            Ok(Expression::Nomal(s.to_string()))
         }
     }
 
@@ -92,7 +96,7 @@ impl Expression {
 
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Statement {
     pub select: Expression,
     pub alias: String,
@@ -105,10 +109,14 @@ pub struct Statement {
 impl Statement {
     pub fn new(s: &str) -> Result<Self, QueryError> {
         let mut iter = s.split_whitespace();
-        let select = iter.next().unwrap_or("-");
+        let select_s = iter.next().unwrap_or("-");
         let _as = iter.next();
         let alias = iter.next().unwrap_or(".");
-        let condition = iter.next().unwrap_or("-");
+        let condition = iter.next();
+        let select = match Expression::from(select_s) {
+          Ok(e) => e,
+          Err(err) => return Err(err)
+        };
 
         let cond = Condition::from(condition);
         match cond {
@@ -116,18 +124,23 @@ impl Statement {
                 let left = iter.next().unwrap_or("- ");
                 let operator = iter.next().unwrap_or("-");
                 let right = iter.next().unwrap_or(" -");
+                let left_e = match Expression::from(left) {
+                  Ok(e) => e,
+                  Err(err) => return Err(err)
+                };
+
                 Ok(Statement {
-                    select: Expression::from(select),
+                    select: select,
                     alias: alias.to_string(),
                     condition: cond,
                     operator: Some(Operator::from(operator)),
-                    left: Some(Expression::from(left)),
+                    left: Some(left_e),
                     right: Some(parse_right(right))
                 })
             },
             Condition::NoCondition | Condition::Append => {
               Ok(Statement {
-                  select: Expression::from(select),
+                  select: select,
                   alias: alias.to_string(),
                   condition: cond,
                   operator: None,
@@ -142,7 +155,9 @@ impl Statement {
     pub fn is_ast_exp(&self) -> bool {
         self.select.is_ast() && self.left.as_ref().map(|e| e.is_ast()).unwrap_or(false)
     }
+
 }
+
 
 fn parse_right(s: &str) -> Value {
     let is_number = !s.chars().map(|c| c.is_numeric()).collect::<Vec<bool>>().contains(&false);

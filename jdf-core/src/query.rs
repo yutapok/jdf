@@ -1,6 +1,5 @@
-use crate::statement::{Condition, Operator, Expression, Statement};
+use crate::statement::{Condition, Operator, Statement};
 use crate::jdf::Jdf;
-use crate::error::QueryError;
 
 use serde_json::{Value, Map};
 
@@ -13,19 +12,20 @@ pub struct Query {
 }
 
 impl Query {
-    pub fn new(jdf: Jdf) -> Self {
-        Query { inner: Arc::new(QueryInner::new(jdf)) }
+    pub fn new(jdf: Jdf, stmts: Vec<Statement>) -> Self {
+        Query {
+          inner: Arc::new(QueryInner::new(jdf, stmts)),
+        }
     }
 
-    pub fn multi_execute(&mut self, stmts: Vec<Statement>) -> () {
-        let mut local_self = self.inner.clone();
+    pub fn execute(&mut self) -> Map<String, Value> {
         let mut gather = vec![];
         let mut fixed = vec![];
-
+        let stmts = self.inner.clone().stmts.clone();
         for stmt in stmts {
-            let mut local_self = self.inner.clone();
+            let local_self = self.inner.clone();
             let wait = thread::spawn(move || {
-                local_self.execute_(stmt)
+                local_self.execute_(&stmt)
             });
             gather.push(wait);
         }
@@ -36,42 +36,28 @@ impl Query {
            fixed.push(s);
         }
 
-        let sum_mp = fixed.iter().flat_map(|mp_| mp_.clone()).collect::<Map<String, Value>>();
-        println!("{:?}", serde_json::to_string(&sum_mp).unwrap());
-    }
-
-    pub fn execute(&mut self, stmt: Statement) -> Value {
-        Value::Object(self.inner.execute_(stmt))
+        fixed
+          .iter()
+          .flat_map(|mp_| mp_.clone())
+          .collect::<Map<String, Value>>()
     }
 
 }
 
 struct QueryInner {
     jdf_mp: Map<String, Value>,
+    stmts: Vec<Statement>
 }
 
 
 impl QueryInner {
-    pub fn new(mut jdf: Jdf) -> Self {
+    pub fn new(mut jdf: Jdf, stmts: Vec<Statement>) -> Self {
         jdf.convert();
-        QueryInner { jdf_mp: jdf.to_map() }
+        QueryInner { jdf_mp: jdf.to_map(), stmts: stmts}
     }
 
-    fn debug(&self) -> () {
-        println!("{:?}", self.jdf_mp);
-    }
-
-    fn extract_as_str(&self, s: &str) -> Option<String> {
-        match self.jdf_mp.get(s) {
-            Some(Value::String(s)) => Some(s.to_string()),
-            Some(Value::Number(i)) => Some(i.to_string()),
-            _ => None
-        }
-    }
-
-    fn execute_(&self, stmt: Statement) -> Map<String, Value> {
+    fn execute_(&self, stmt: &Statement) -> Map<String, Value> {
         let mut ret_mp: Map<String, Value> = Map::new();
-        //let v = self.evaluate(&stmt);
         ret_mp.insert(stmt.alias.clone(), self.evaluate(&stmt));
         ret_mp
     }
@@ -83,19 +69,13 @@ impl QueryInner {
                 self.jdf_mp.get(&stmt.select.as_str()).unwrap_or(&Value::Null).clone()
             },
             Condition::When => self.when(stmt),
-    //        Condition::Append => Value::Array(self.append(mp, stmt.select.as_str())
-    //          .iter()
-    //          .map(|s| Value::String(s.to_string()))
-    //          .collect::<Vec<Value>>()
-    //        ),
-            Condition::Unknown => Value::Null,
-            _ => Value::Null
+            Condition::Append => self.append(stmt),
+            Condition::Unknown => Value::Null
         }
     }
 
     fn when(&self, stmt: &Statement) -> Value {
         let length: usize = self.jdf_mp.iter().len();
-
         if stmt.is_ast_exp() {
             let select_v = stmt.select.as_ast().unwrap().parse_as_vec(length);
             let left_v = stmt.left.as_ref().unwrap().as_ast().unwrap().parse_as_vec(length);
@@ -106,8 +86,8 @@ impl QueryInner {
                   self.jdf_mp.get(left_s).unwrap_or(&Value::Null)
                 )
             })
-            .filter(|(select, left)| self.when_case(left, &stmt.operator.as_ref().unwrap(), &stmt.right.as_ref().unwrap()))
-            .find_map(|(select, left)| self.jdf_mp.get(select))
+            .filter(|(_select, left)| self.when_case(left, &stmt.operator.as_ref().unwrap(), &stmt.right.as_ref().unwrap()))
+            .find_map(|(select, _left)| self.jdf_mp.get(select))
             .unwrap_or(&Value::Null)
             .clone()
         } else {
@@ -125,42 +105,29 @@ impl QueryInner {
 
 
     fn when_case(&self, left: &Value, operator: &Operator, right: &Value) -> bool {
-        match (operator, left, right) {
-            (Operator::EQ, Value::String(s1), Value::String(s2)) => s1 == s2,
-            (Operator::NEQ, Value::String(s1), Value::String(s2)) => s1 != s2,
-            (Operator::EQ, Value::Number(n1), Value::Number(n2)) => n1 == n2,
-            (Operator::NEQ, Value::Number(n1), Value::Number(n2)) => n1 != n2,
-            (Operator::EQ, Value::Bool(b1), Value::Bool(b2)) => b1 == b2,
-            (Operator::NEQ, Value::Bool(b1), Value::Bool(b2)) => b1 != b2,
+        match (left, right) {
+            (Value::String(s1), Value::String(s2)) => if *operator == Operator::EQ { s1 == s2 } else { s1 != s2 },
+            (Value::Number(n1), Value::Number(n2)) => if *operator == Operator::EQ { n1 == n2 } else { n1 != n2 },
+            (Value::Bool(b1), Value::Bool(b2)) => if *operator == Operator::EQ { b1 == b2 } else { b1 != b2 },
             _ => false
         }
     }
 
 
-    //fn append(&self, mp: &Arc<Map<String, Value>>, select: String) ->  Vec<String> {
-    //    let search = Search::new(&select, mp);
-    //    if !search.is_asterisk {
-    //        let v_ = Vec::with_capacity(1);
-    //        return v_
-    //    }
+    fn append(&self, stmt: &Statement) -> Value {
+        if !stmt.select.is_ast() {
+            Value::Array(Vec::with_capacity(1))
+        } else {
+            let select_v = stmt.select.as_ast().unwrap().parse_as_vec(self.jdf_mp.iter().len());
+            let v_v = select_v
+              .iter()
+              .filter_map(|select_s| self.jdf_mp.get(select_s))
+              .filter(|v| !v.is_null())
+              .map(|v| v.clone())
+              .inspect(|v| println!("{}", v))
+              .collect::<Vec<Value>>();
 
-    //    search.results().iter()
-    //      .filter(|v| **v != Value::Null)
-    //      .map(|k| match k {
-    //          Value::String(s) => s.to_string(),
-    //          _ => "".to_string()
-    //      })
-    //      .filter(|opt| !opt.is_empty())
-    //      .collect::<Vec<String>>()
-    //}
-
-    //fn extract_as_str(mp: &Arc<Map<String, Value>>, s: String) ->  Option<String> {
-    //    let v = mp.get(&s).unwrap_or(&Value::Null);
-    //    match v {
-    //        &Value::String(s) => Some(s),
-    //        _ => None
-    //    }
-
-
-    //}
+            Value::Array(v_v)
+        }
+    }
 }
