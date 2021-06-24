@@ -10,11 +10,23 @@ use std::env;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, stdout, Write, BufWriter};
 
+
+const HELP: &'static str = r#"
+USAGE:
+       jdf [FLAGS]
+FLAGS:
+       <NONE>               Show flatten json
+       -c <Path/to/JQL>     Use Query
+       -h                   Prints help information
+"#;
+
 #[derive(PartialEq)]
 enum ExecType {
     Pure,
-    Query
+    Query,
+    Help
 }
+
 
 impl ExecType {
     pub fn from(s: Vec<String>) -> Self {
@@ -24,6 +36,7 @@ impl ExecType {
         let sub = &s[1];
         match sub.as_str() {
           "-c" => ExecType::Query,
+          "-h" => ExecType::Help,
           _ => ExecType::Pure
         }
     }
@@ -69,7 +82,9 @@ fn main() -> Result<(), JdfError> {
                 writeln!(out, "{}", serde_json::to_string(&jdf.to_map()).unwrap()).unwrap();
                 buf.clear();
             }
-        }
+        },
+        ExecType::Help => writeln!(out, "{}", HELP).unwrap()
+
     }
     Ok(())
 
