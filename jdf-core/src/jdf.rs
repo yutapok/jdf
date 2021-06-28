@@ -6,7 +6,7 @@ pub struct Jdf {
 
 impl Jdf {
     pub fn new(s: String) -> Self {
-        Jdf { value: serde_json::from_str(&s).unwrap() }
+        Jdf { value: serde_json::from_str(&s).unwrap_or(Value::Null) }
     }
 
     pub fn convert(&mut self) ->  () {
