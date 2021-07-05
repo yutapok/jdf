@@ -3,8 +3,36 @@ use crate::jdf::Jdf;
 
 use serde_json::{Value, Map};
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
+
+#[derive(Clone)]
+pub enum Custom {
+    Addon(Box<dyn Addon + 'static  + Sync + Send>)
+}
+
+pub trait Addon: AddonClone {
+    fn pipe(&self, jdf_mp: Map<String, Value>, v: Value) -> Value;
+}
+
+pub trait AddonClone {
+    fn clone_box(&self) -> Box<dyn Addon + 'static  + Sync + Send>;
+}
+
+impl<T> AddonClone for T
+  where T: 'static + Addon + Clone + Sync + Send,
+{
+    fn clone_box(&self) -> Box<dyn Addon + 'static  + Sync + Send> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn Addon + 'static  + Sync + Send> {
+    fn clone(&self) ->  Box<dyn Addon + 'static  + Sync + Send> {
+        self.clone_box()
+    }
+}
 
 
 pub struct Query {
@@ -12,9 +40,9 @@ pub struct Query {
 }
 
 impl Query {
-    pub fn new(jdf: Jdf, stmts: Vec<Statement>) -> Self {
+    pub fn new(jdf: Jdf, stmts: Vec<Statement>, extention: Option<HashMap<String, Custom>>) -> Self {
         Query {
-          inner: Arc::new(QueryInner::new(jdf, stmts)),
+          inner: Arc::new(QueryInner::new(jdf, stmts, extention)),
         }
     }
 
@@ -46,14 +74,14 @@ impl Query {
 
 struct QueryInner {
     jdf_mp: Map<String, Value>,
-    stmts: Vec<Statement>
-}
+    stmts: Vec<Statement>,
+    extention: Option<HashMap<String, Custom>>}
 
 
 impl QueryInner {
-    pub fn new(mut jdf: Jdf, stmts: Vec<Statement>) -> Self {
+    pub fn new(mut jdf: Jdf, stmts: Vec<Statement>, extention: Option<HashMap<String, Custom>>) -> Self {
         jdf.convert();
-        QueryInner { jdf_mp: jdf.to_map(), stmts: stmts}
+        QueryInner { jdf_mp: jdf.to_map(), stmts: stmts, extention}
     }
 
     fn execute_(&self, stmt: &Statement) -> Map<String, Value> {
@@ -70,6 +98,7 @@ impl QueryInner {
             },
             Condition::When => self.when(stmt),
             Condition::Append => self.append(stmt),
+            Condition::ArrayMap => self.array_map(stmt),
             Condition::Unknown => Value::Null
         }
     }
@@ -168,5 +197,25 @@ impl QueryInner {
 
             Value::Array(v_v)
         }
+    }
+
+    fn array_map(&self, stmt: &Statement) -> Value {
+        let v = self.append(stmt);
+        let addon_name = stmt.addon.as_ref().unwrap_or(&"-".to_string()).clone();
+        let new_v = match &self.extention {
+          Some(mp) => match mp.get(&addon_name) {
+            Some(Custom::Addon(addon)) => {
+              v.as_array()
+                .unwrap_or(&Vec::with_capacity(0))
+                .iter()
+                .map(|v| addon.pipe(self.jdf_mp.clone(), v.clone()))
+                .collect::<Vec<Value>>()
+            },
+            None => Vec::with_capacity(0)
+          },
+          None => Vec::with_capacity(0)
+        };
+
+        Value::Array(new_v)
     }
 }

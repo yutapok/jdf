@@ -26,6 +26,7 @@ impl Operator {
 pub enum Condition {
   When,
   Append,
+  ArrayMap,
   NoCondition,
   Unknown
 }
@@ -36,6 +37,7 @@ impl Condition {
         match s {
           Some("WHEN") => Condition::When,
           Some("APPEND") => Condition::Append,
+          Some("ARRAY_MAP") => Condition::ArrayMap,
           Some(_) => Condition::Unknown,
           None => Condition::NoCondition
         }
@@ -93,6 +95,7 @@ impl Expression {
 
 }
 
+
 #[derive(Clone, Debug)]
 pub struct Statement {
     pub select: Expression,
@@ -101,6 +104,7 @@ pub struct Statement {
     pub operator: Option<Operator>,
     pub left: Option<Expression>,
     pub right: Option<Value>,
+    pub addon: Option<String>
 }
 
 impl Statement {
@@ -126,7 +130,8 @@ impl Statement {
                     condition: cond,
                     operator: Some(Operator::from(operator)),
                     left: Some(left_e),
-                    right: Some(parse_right(right))
+                    right: Some(parse_right(right)),
+                    addon: None
                 })
             },
             Condition::NoCondition | Condition::Append => {
@@ -136,7 +141,22 @@ impl Statement {
                   condition: cond,
                   operator: None,
                   left: None,
-                  right: None
+                  right: None,
+                  addon: None
+              })
+            },
+            Condition::ArrayMap => {
+              let _ = iter.next();
+              let _ = iter.next();
+              let func_name = iter.next().unwrap_or("-");
+              Ok(Statement {
+                  select: select,
+                  alias: alias.to_string(),
+                  condition: cond,
+                  operator: None,
+                  left: None,
+                  right: None,
+                  addon: Some(func_name.to_string())
               })
             },
             Condition::Unknown => Err(error!("Unexpected condition was found"))
