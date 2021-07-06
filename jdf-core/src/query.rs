@@ -1,4 +1,6 @@
 use crate::statement::{Condition, Operator, Expression, Statement};
+use crate::custom::Custom;
+
 use crate::jdf::Jdf;
 
 use serde_json::{Value, Map};
@@ -6,33 +8,6 @@ use serde_json::{Value, Map};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
-
-#[derive(Clone)]
-pub enum Custom {
-    Addon(Box<dyn Addon + 'static  + Sync + Send>)
-}
-
-pub trait Addon: AddonClone {
-    fn pipe(&self, jdf_mp: Map<String, Value>, v: Value) -> Value;
-}
-
-pub trait AddonClone {
-    fn clone_box(&self) -> Box<dyn Addon + 'static  + Sync + Send>;
-}
-
-impl<T> AddonClone for T
-  where T: 'static + Addon + Clone + Sync + Send,
-{
-    fn clone_box(&self) -> Box<dyn Addon + 'static  + Sync + Send> {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn Addon + 'static  + Sync + Send> {
-    fn clone(&self) ->  Box<dyn Addon + 'static  + Sync + Send> {
-        self.clone_box()
-    }
-}
 
 
 pub struct Query {
@@ -208,7 +183,8 @@ impl QueryInner {
               v.as_array()
                 .unwrap_or(&Vec::with_capacity(0))
                 .iter()
-                .map(|v| addon.pipe(self.jdf_mp.clone(), v.clone()))
+                .enumerate()
+                .map(|(ix, v)| addon.pipe(self.jdf_mp.clone(), ix as i64, v.clone()))
                 .collect::<Vec<Value>>()
             },
             None => Vec::with_capacity(0)
