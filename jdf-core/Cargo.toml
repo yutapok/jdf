@@ -1,5 +1,5 @@
 [package]
-name = "jdf-core"
+name = "jdf_core"
 version = "0.1.0"
 authors = ["yutapok <yutautsugi@outlook.com>"]
 edition = "2018"

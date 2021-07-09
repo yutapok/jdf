@@ -1,10 +1,13 @@
 extern crate jdf_core;
+extern crate jdf_addons;
 
 use jdf_core::jdf::Jdf;
 use jdf_core::query::Query;
 use jdf_core::statement::Statement;
 use jdf_core::error;
 use jdf_core::error::JdfError;
+
+use jdf_addons::Addons;
 
 use std::env;
 use std::fs::File;
@@ -53,6 +56,8 @@ fn main() -> Result<(), JdfError> {
 
     let e_type = ExecType::from(args.clone());
 
+    let addon_mp = Addons::load();
+
     match e_type {
         ExecType::Query => {
             if args.len() < 3 {
@@ -65,7 +70,7 @@ fn main() -> Result<(), JdfError> {
               .collect::<Vec<Statement>>();
             while reader.read_line(&mut buf)? > 0 {
                 let jdf = Jdf::new(buf.to_string());
-                let mut q = Query::new(jdf, stmts.clone());
+                let mut q = Query::new(jdf, stmts.clone(), Some(addon_mp.clone()));
                 let new_mp = q.execute();
 
                 writeln!(out, "{}", serde_json::to_string(&new_mp).unwrap()).unwrap();
@@ -90,4 +95,5 @@ fn main() -> Result<(), JdfError> {
 
 
 }
+
 

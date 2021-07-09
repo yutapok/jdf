@@ -6,16 +6,20 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[workspace]
+members = [
+  "jdf-core",
+  "jdf-addons"
+]
+
 [[bin]]
-name= "jdf"
+name = "jdf"
 path = "jdf/src/main.rs"
 
-[lib]
-name = "jdf_core"
-path = "jdf-core/src/lib.rs"
-
-
 [dependencies]
+jdf_core = { path = "./jdf-core" }
+jdf_addons = { path = "./jdf-addons" }
+chrono = "0.4"
 serde = '*'
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 

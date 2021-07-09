@@ -1,8 +1,5 @@
 [package]
-name = "jdf-bin"
+name = "jdf"
 version = "0.1.0"
 authors = ["yutapok <yutautsugi@outlook.com>"]
 edition = "2018"
-
-[dependencies]
-jdf_core = { path = "../jdf-core" }
