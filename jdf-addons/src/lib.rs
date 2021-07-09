@@ -1,4 +1,4 @@
-pub mod datetime_parser;
+pub mod sample;
 
 use jdf_core::custom::{Custom, Addon};
 use std::collections::HashMap;
