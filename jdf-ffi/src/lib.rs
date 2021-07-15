@@ -45,7 +45,7 @@ pub extern "C" fn query(json_s: *const i8, statements: *const i8) -> *const i8 {
      .collect::<Vec<Statement>>();
 
 
-    let mut q = Query::new(jdf, stmts.clone());
+    let mut q = Query::new(jdf, stmts.clone(), None);
 
     let ret_mp = q.execute();
 
