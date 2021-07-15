@@ -1,0 +1,11 @@
+[package]
+name = "jdf_addons"
+version = "0.1.0"
+authors = ["yutapok <yutautsugi@outlook.com>"]
+edition = "2018"
+
+[dependencies]
+jdf_core = { path = "../jdf-core" }
+serde = '*'
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+chrono = "0.4"
