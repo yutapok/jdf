@@ -9,6 +9,7 @@ edition = "2018"
 [workspace]
 members = [
   "jdf-core",
+  "jdf-ffi",
   "jdf-addons"
 ]
 
@@ -22,4 +23,3 @@ jdf_addons = { path = "./jdf-addons" }
 chrono = "0.4"
 serde = '*'
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
-
