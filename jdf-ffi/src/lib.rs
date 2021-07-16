@@ -6,6 +6,8 @@ use jdf_core::statement::Statement;
 use jdf_core::jdf::Jdf;
 use jdf_core::query::Query;
 
+use jdf_addons::Addons;
+
 
 #[no_mangle]
 pub extern "C" fn flatten(json_s: *const i8) -> *const i8 {
@@ -44,8 +46,9 @@ pub extern "C" fn query(json_s: *const i8, statements: *const i8) -> *const i8 {
      .filter_map(|v| Statement::new(&v).ok())
      .collect::<Vec<Statement>>();
 
+    let addon_mp = Addons::load();
 
-    let mut q = Query::new(jdf, stmts.clone(), None);
+    let mut q = Query::new(jdf, stmts.clone(), Some(addon_mp));
 
     let ret_mp = q.execute();
 

@@ -12,6 +12,7 @@ crate_type = ["dylib"]
 
 [dependencies]
 jdf_core = { path = "../jdf-core" }
+jdf_addons = { path = "../jdf-addons" }
 libc = "*"
 serde = '*'
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
