@@ -78,6 +78,7 @@ impl QueryInner {
         }
     }
 
+
     fn keys_with_ast(&self, stmt_exp: Expression) -> Vec<String> {
         let src = stmt_exp.as_str();
         let dst_v = self.jdf_mp.keys();
@@ -117,23 +118,16 @@ impl QueryInner {
 
     fn when(&self, stmt: &Statement) -> Value {
         if stmt.is_ast_exp() {
-            let mut select_v = self.keys_with_ast(stmt.select.clone());
-            let mut left_v = self.keys_with_ast(stmt.left.as_ref().unwrap().clone());
-
-            select_v.sort();
-            left_v.sort();
-
-
-            select_v.iter().zip(left_v.iter()).map(|(select_s, left_s)| {
-                (
-                  select_s,
-                  self.jdf_mp.get(left_s).unwrap_or(&Value::Null)
-                )
-            })
-            .filter(|(_select, left)| self.when_case(left, &stmt.operator.as_ref().unwrap(), &stmt.right.as_ref().unwrap()))
-            .find_map(|(select, _left)| self.jdf_mp.get(select))
-            .unwrap_or(&Value::Null)
-            .clone()
+            let left  = stmt.left.as_ref().unwrap().as_str().clone();
+            let dst_v = self.jdf_mp.keys();
+            dst_v
+              .filter(|dst| self.partial_match(&left, &dst))
+              .map(|dst| (dst, self.jdf_mp.get(dst).unwrap_or(&Value::Null)))
+              .filter(|(_dst, left)| self.when_case(left, stmt.operator.as_ref().unwrap(), stmt.right.as_ref().unwrap()))
+              .map(|(dst, _)| self.mapping_index(stmt.select.as_str(), self.extract_index(dst.to_string())))
+              .find_map(|dst| self.jdf_mp.get(&dst))
+              .unwrap_or(&Value::Null)
+              .clone()
         } else {
             if self.when_case(
                 self.jdf_mp.get(&stmt.left.as_ref().unwrap().as_str()).unwrap_or(&Value::Null),
@@ -145,6 +139,32 @@ impl QueryInner {
                 Value::Null
             }
         }
+    }
+
+    fn extract_index(&self, src: String) -> Vec<String> {
+        let mut new_v = Vec::new();
+        let mut flag: u8 = 0;
+
+        let mut str_vec: Vec<char> = Vec::new();
+        for c in src.chars(){
+            if !self.encount(c, &mut flag){
+                str_vec.push(c)
+            } else {
+                new_v.push(str_vec.iter().filter(|c| **c != "[".chars().next().unwrap()).collect::<String>());
+                str_vec = Vec::new();
+            }
+        }
+
+        new_v.iter().filter(|s| !s.is_empty()).map(|s| s.to_string()).collect::<Vec<String>>()
+
+    }
+
+    fn mapping_index(&self, src: String, indexes: Vec<String>) -> String {
+      let mut index_itr = indexes.iter();
+      src
+        .chars()
+        .map(|c| if c == "*".chars().next().unwrap() { index_itr.next().map(|i| i.to_string()).unwrap_or(c.to_string()) } else { c.to_string() })
+        .collect::<String>()
     }
 
 
