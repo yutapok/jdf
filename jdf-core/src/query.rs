@@ -59,7 +59,11 @@ impl QueryInner {
     fn execute_(&self, stmt: &Statement) -> Map<String, Value> {
         let mut ret_mp: Map<String, Value> = Map::new();
         if stmt.condition == Condition::FlatMap {
-            let mut new_mp = self.evaluate(&stmt).as_object().unwrap_or(&Map::with_capacity(0)).clone();
+            let mut new_mp = self.evaluate(&stmt)
+              .as_object()
+              .unwrap_or(&Map::with_capacity(0))
+              .clone();
+
             ret_mp.append(&mut new_mp);
 
         } else {
@@ -141,7 +145,17 @@ impl QueryInner {
           .filter_map(|v| v.as_object())
           .map(|obj| (obj.get(&left), obj.get(&right)))
           .filter(|(l, r)| l.is_some() && r.is_some())
-          .map(|(l, r)| (l.unwrap().as_str().unwrap().to_string(), r.unwrap().clone()))
+          .map(|(l, r)| {
+            let alias = stmt.alias.clone();
+            (
+              if alias == "*" {
+                  l.unwrap().as_str().unwrap().to_string()
+              } else {
+                  format!("{}_{}", stmt.alias, l.unwrap().as_str().unwrap())
+              },
+              r.unwrap().clone()
+            )
+          })
           .collect::<Map<String, Value>>();
 
         Value::Object(mp)
