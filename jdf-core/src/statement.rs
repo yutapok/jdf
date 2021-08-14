@@ -22,12 +22,13 @@ impl Operator {
   }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Condition {
   When,
   Append,
   ArrayMap,
   NoCondition,
+  FlatMap,
   Unknown
 }
 
@@ -38,6 +39,7 @@ impl Condition {
           Some("WHEN") => Condition::When,
           Some("APPEND") => Condition::Append,
           Some("ARRAY_MAP") => Condition::ArrayMap,
+          Some("FLAT_MAP") => Condition::FlatMap,
           Some(_) => Condition::Unknown,
           None => Condition::NoCondition
         }
@@ -59,14 +61,14 @@ impl Asterisk {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
-    AsteriskInArray(Asterisk),
+    Array(String),
     Nomal(String)
 }
 
 impl Expression {
     pub fn from(s: &str) -> Self {
-        if s.contains("[*]") {
-            Expression::AsteriskInArray(Asterisk { inner_str: s.to_string() })
+        if s.contains("[]") {
+            Expression::Array(s.to_string())
         } else {
             Expression::Nomal(s.to_string())
         }
@@ -74,24 +76,25 @@ impl Expression {
 
     pub fn as_str(&self) -> String {
         match &*self {
-            Expression::AsteriskInArray(st) => st.inner_str.clone(),
+            Expression::Array(s) => s.to_string(),
             Expression::Nomal(s) => s.to_string()
+        }
+    }
+
+    pub fn is_arr(&self) -> bool {
+        match *self {
+            Expression::Array(_) => true,
+            _ => false
         }
     }
 
     pub fn is_ast(&self) -> bool {
         match *self {
-          Expression::AsteriskInArray(_) => true,
+          Expression::Array(_) => true,
           _ => false
         }
     }
 
-    pub fn as_ast(&self) -> Option<Asterisk> {
-        match &*self {
-            Expression::AsteriskInArray(st) => Some(st.clone()),
-            _ => None
-        }
-    }
 
 }
 
@@ -118,7 +121,7 @@ impl Statement {
 
         let cond = Condition::from(condition);
         match cond {
-            Condition::When => {
+            Condition::When | Condition::FlatMap => {
                 let left = iter.next().unwrap_or("- ");
                 let operator = iter.next().unwrap_or("-");
                 let right = iter.next().unwrap_or(" -");

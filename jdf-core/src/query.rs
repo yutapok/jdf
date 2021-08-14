@@ -23,8 +23,9 @@ impl Query {
 
     pub fn execute(&mut self) -> Map<String, Value> {
         let mut gather = vec![];
-        let mut fixed = vec![];
         let stmts = self.inner.clone().stmts.clone();
+        let mut fixed: Map<String, Value> = Map::with_capacity(stmts.len());
+
         for stmt in stmts {
             let local_self = self.inner.clone();
             let wait = thread::spawn(move || {
@@ -33,16 +34,12 @@ impl Query {
             gather.push(wait);
         }
 
-
         for wait in gather {
-           let s = wait.join().unwrap();
-           fixed.push(s);
+            let mut s = wait.join().unwrap();
+            fixed.append(&mut s);
         }
 
         fixed
-          .iter()
-          .flat_map(|mp_| mp_.clone())
-          .collect::<Map<String, Value>>()
     }
 
 }
@@ -61,7 +58,14 @@ impl QueryInner {
 
     fn execute_(&self, stmt: &Statement) -> Map<String, Value> {
         let mut ret_mp: Map<String, Value> = Map::new();
-        ret_mp.insert(stmt.alias.clone(), self.evaluate(&stmt));
+        if stmt.condition == Condition::FlatMap {
+            let mut new_mp = self.evaluate(&stmt).as_object().unwrap_or(&Map::with_capacity(0)).clone();
+            ret_mp.append(&mut new_mp);
+
+        } else {
+            ret_mp.insert(stmt.alias.clone(), self.evaluate(&stmt));
+
+        }
         ret_mp
     }
 
@@ -74,6 +78,7 @@ impl QueryInner {
             Condition::When => self.when(stmt),
             Condition::Append => self.append(stmt),
             Condition::ArrayMap => self.array_map(stmt),
+            Condition::FlatMap => self.flat_map(stmt),
             Condition::Unknown => Value::Null
         }
     }
@@ -114,6 +119,32 @@ impl QueryInner {
         }
 
         *flag == 0 as u8
+    }
+
+    fn flat_map(&self, stmt: &Statement) -> Value {
+        let select = stmt.select.as_str();
+        let left  = stmt.left.as_ref().unwrap().as_str();
+        let select_vec = self.jdf_mp.get(&select);
+
+        let right = match stmt.right.as_ref().unwrap(){
+            Value::String(s1) => s1.clone(),
+            _ => return Value::Null
+        };
+
+        if !select_vec.unwrap_or(&Value::Null).is_array(){
+            return Value::Null
+        }
+
+
+        let mp = select_vec.unwrap().as_array().unwrap_or(&Vec::with_capacity(0))
+          .iter()
+          .filter_map(|v| v.as_object())
+          .map(|obj| (obj.get(&left), obj.get(&right)))
+          .filter(|(l, r)| l.is_some() && r.is_some())
+          .map(|(l, r)| (l.unwrap().as_str().unwrap().to_string(), r.unwrap().clone()))
+          .collect::<Map<String, Value>>();
+
+        Value::Object(mp)
     }
 
     fn when(&self, stmt: &Statement) -> Value {
@@ -160,11 +191,17 @@ impl QueryInner {
     }
 
     fn mapping_index(&self, src: String, indexes: Vec<String>) -> String {
-      let mut index_itr = indexes.iter();
-      src
-        .chars()
-        .map(|c| if c == "*".chars().next().unwrap() { index_itr.next().map(|i| i.to_string()).unwrap_or(c.to_string()) } else { c.to_string() })
-        .collect::<String>()
+        let mut index_itr = indexes.iter();
+        src
+          .chars()
+          .map(|c|
+            if c == "*".chars().next().unwrap() {
+              index_itr.next().map(|i| i.to_string()).unwrap_or(c.to_string())
+            } else {
+              c.to_string()
+            }
+          )
+          .collect::<String>()
     }
 
 
