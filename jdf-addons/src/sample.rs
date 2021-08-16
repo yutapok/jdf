@@ -9,7 +9,7 @@ use serde_json::{Value, Map};
 pub struct Sample {}
 
 impl Addon for Sample {
-    fn pipe(&self, jdf_mp: Map<String, Value>, ix: i64, v: Value) -> Value {
+    fn pipe(&self, jdf_mp: Map<String, Value>, v: Value) -> Value {
         let mut m = Map::new();
 
         m.insert("sample_key".to_string(), json!("sample_key"));

@@ -24,9 +24,7 @@ impl Operator {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Condition {
-  When,
-  Append,
-  ArrayMap,
+  Map,
   NoCondition,
   FlatMap,
   Unknown
@@ -36,9 +34,7 @@ pub enum Condition {
 impl Condition {
     pub fn from(s: Option<&str>) -> Self {
         match s {
-          Some("WHEN") => Condition::When,
-          Some("APPEND") => Condition::Append,
-          Some("ARRAY_MAP") => Condition::ArrayMap,
+          Some("MAP") => Condition::Map,
           Some("FLAT_MAP") => Condition::FlatMap,
           Some(_) => Condition::Unknown,
           None => Condition::NoCondition
@@ -46,66 +42,14 @@ impl Condition {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct Asterisk {
-    pub inner_str: String
-}
-
-impl Asterisk {
-    pub fn parse_as_vec(&self, length: usize) -> Vec<String> {
-        (0..length).map(|ix| {
-            self.inner_str.replace("*", &ix.to_string())
-        }).collect::<Vec<String>>()
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum Expression {
-    Array(String),
-    Nomal(String)
-}
-
-impl Expression {
-    pub fn from(s: &str) -> Self {
-        if s.contains("[]") {
-            Expression::Array(s.to_string())
-        } else {
-            Expression::Nomal(s.to_string())
-        }
-    }
-
-    pub fn as_str(&self) -> String {
-        match &*self {
-            Expression::Array(s) => s.to_string(),
-            Expression::Nomal(s) => s.to_string()
-        }
-    }
-
-    pub fn is_arr(&self) -> bool {
-        match *self {
-            Expression::Array(_) => true,
-            _ => false
-        }
-    }
-
-    pub fn is_ast(&self) -> bool {
-        match *self {
-          Expression::Array(_) => true,
-          _ => false
-        }
-    }
-
-
-}
-
 
 #[derive(Clone, Debug)]
 pub struct Statement {
-    pub select: Expression,
+    pub select: String,
     pub alias: String,
     pub condition: Condition,
     pub operator: Option<Operator>,
-    pub left: Option<Expression>,
+    pub left: Option<Value>,
     pub right: Option<Value>,
     pub addon: Option<String>
 }
@@ -113,33 +57,31 @@ pub struct Statement {
 impl Statement {
     pub fn new(s: &str) -> Result<Self, JdfError> {
         let mut iter = s.split_whitespace();
-        let select_s = iter.next().unwrap_or("-");
+        let select = iter.next().unwrap_or("-");
         let _as = iter.next();
         let alias = iter.next().unwrap_or(".");
         let condition = iter.next();
-        let select = Expression::from(select_s);
 
         let cond = Condition::from(condition);
         match cond {
-            Condition::When | Condition::FlatMap => {
+            Condition::FlatMap => {
                 let left = iter.next().unwrap_or("- ");
                 let operator = iter.next().unwrap_or("-");
                 let right = iter.next().unwrap_or(" -");
-                let left_e = Expression::from(left);
 
                 Ok(Statement {
-                    select: select,
+                    select: select.to_string(),
                     alias: alias.to_string(),
                     condition: cond,
                     operator: Some(Operator::from(operator)),
-                    left: Some(left_e),
-                    right: Some(parse_right(right)),
+                    left: Some(parse_as(left)),
+                    right: Some(parse_as(right)),
                     addon: None
                 })
             },
-            Condition::NoCondition | Condition::Append => {
+            Condition::NoCondition => {
               Ok(Statement {
-                  select: select,
+                  select: select.to_string(),
                   alias: alias.to_string(),
                   condition: cond,
                   operator: None,
@@ -148,12 +90,12 @@ impl Statement {
                   addon: None
               })
             },
-            Condition::ArrayMap => {
+            Condition::Map => {
               let _ = iter.next();
               let _ = iter.next();
               let func_name = iter.next().unwrap_or("-");
               Ok(Statement {
-                  select: select,
+                  select: select.to_string(),
                   alias: alias.to_string(),
                   condition: cond,
                   operator: None,
@@ -166,14 +108,11 @@ impl Statement {
         }
     }
 
-    pub fn is_ast_exp(&self) -> bool {
-        self.select.is_ast() && self.left.as_ref().map(|e| e.is_ast()).unwrap_or(false)
-    }
 
 }
 
 
-fn parse_right(s: &str) -> Value {
+fn parse_as(s: &str) -> Value {
     let is_number = !s.chars().map(|c| c.is_numeric()).collect::<Vec<bool>>().contains(&false);
     let is_bool = s == "true" || s == "false";
 
