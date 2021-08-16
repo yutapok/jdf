@@ -100,9 +100,17 @@ impl QueryInner {
         }
 
 
-        let mp = select_vec.unwrap().as_array().unwrap_or(&Vec::with_capacity(0))
+        let jdf_mp = select_vec.unwrap().as_array().unwrap_or(&Vec::with_capacity(0))
           .iter()
-          .filter_map(|v| v.as_object())
+          .map(|v| {
+            let mut arr_jdf = Jdf::from(v.clone());
+            arr_jdf.convert();
+            arr_jdf.to_map()
+          })
+          .collect::<Vec<Map<String, Value>>>();
+
+        let mp = jdf_mp
+          .iter()
           .map(|obj| (obj.get(left), obj.get(&right)))
           .filter(|(l, r)| l.is_some() && r.is_some())
           .map(|(l, r)| {

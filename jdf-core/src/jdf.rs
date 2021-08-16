@@ -9,6 +9,10 @@ impl Jdf {
         Jdf { value: serde_json::from_str(&s).unwrap_or(Value::Null) }
     }
 
+    pub fn from(v: Value) -> Self {
+        Jdf { value: v }
+    }
+
     pub fn convert(&mut self) ->  () {
         let default_key_str = "".to_string();
         let mp = json_flatten(default_key_str, self.value.clone());
@@ -24,6 +28,7 @@ impl Jdf {
             mp
         }
     }
+
 }
 
 fn json_flatten(key: String, value: Value) -> Map<String, Value> {
