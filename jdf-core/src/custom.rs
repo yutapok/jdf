@@ -7,7 +7,7 @@ pub enum Custom {
 }
 
 pub trait Addon: AddonClone {
-    fn pipe(&self, jdf_mp: Map<String, Value>, ix: i64, v: Value) -> Value;
+    fn pipe(&self, jdf_mp: Map<String, Value>, v: Value) -> Value;
 }
 
 pub trait AddonClone {
